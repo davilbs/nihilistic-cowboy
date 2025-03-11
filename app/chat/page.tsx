@@ -1,16 +1,23 @@
 'use client'
 
-import { useChat } from 'ai/react'
+import { useChat, Message } from 'ai/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import React from 'react'
+
+interface ChatMessage extends Message {
+  timestamp: string;
+}
 
 export default function ChatPage() {
   const supabase = createClient()
   const [authHeader, setAuthHeader] = useState<string>('')
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const isAtBottom = useRef(true)
 
   useEffect(() => {
     const getSession = async () => {
@@ -22,7 +29,7 @@ export default function ChatPage() {
     getSession()
   }, [supabase.auth])
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
+  const { messages: rawMessages, input, handleInputChange, handleSubmit, isLoading, setMessages: setRawMessages } = useChat({
     api: '/api/chat',
     headers: {
       'Authorization': authHeader
@@ -32,13 +39,14 @@ export default function ChatPage() {
       if (!reader) return;
 
       // Create initial assistant message
-      setMessages(current => [
+      setRawMessages(current => [
         ...current,
         {
           id: current.length.toString(),
           role: 'assistant',
-          content: ''
-        }
+          content: '',
+          timestamp: new Date().toISOString()
+        } as ChatMessage
       ]);
 
       const decoder = new TextDecoder();
@@ -58,8 +66,8 @@ export default function ChatPage() {
                   const parsed = JSON.parse(jsonStr);
                   
                   // Update the last message with new content
-                  setMessages(current => {
-                    const lastMessage = current[current.length - 1];
+                  setRawMessages(current => {
+                    const lastMessage = current[current.length - 1] as ChatMessage;
                     if (lastMessage?.role === 'assistant') {
                       return [
                         ...current.slice(0, -1),
@@ -85,21 +93,47 @@ export default function ChatPage() {
       readChunks();
     }
   })
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Add timestamp to user messages
+  const messages = rawMessages.map(msg => ({
+    ...msg,
+    timestamp: (msg as ChatMessage).timestamp || new Date().toISOString()
+  })) as ChatMessage[]
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
   }
 
   useEffect(() => {
-    scrollToBottom()
+    if (isAtBottom.current) {
+      scrollToBottom()
+    }
   }, [messages])
 
+  // Add scroll listener to track if we're at bottom
+  useEffect(() => {
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+      isAtBottom.current = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+    return () => scrollContainer.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-between p-4 md:p-24">
-      <Card className="w-full max-w-4xl">
-        <div className="flex h-[80vh] flex-col">
-          <ScrollArea className="flex-1 p-4">
+    <div className="flex h-[calc(100vh-4rem)] w-4/5 mx-auto">
+      <Card className="w-full">
+        <div className="flex h-full flex-col">
+          <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
             <div className="space-y-4">
               {messages.map((message, i) => (
                 <div
@@ -111,17 +145,32 @@ export default function ChatPage() {
                   }`}
                 >
                   <div
-                    className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                    className={`rounded-lg px-4 py-2 max-w-[80%] whitespace-pre-wrap relative ${
                       message.role === 'assistant'
                         ? 'bg-muted'
                         : 'bg-primary text-primary-foreground'
                     }`}
                   >
-                    {message.content}
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        {message.content.split('\n').map((line, index, array) => (
+                          <React.Fragment key={index}>
+                            {line}
+                            {index < array.length - 1 && <br />}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                      <div className={`text-[10px] flex-shrink-0 self-end ${
+                        message.role === 'assistant'
+                          ? 'text-muted-foreground'
+                          : 'text-primary-foreground/70'
+                      }`}>
+                        {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
 
