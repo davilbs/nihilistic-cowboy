@@ -1,6 +1,6 @@
 'use client'
 
-import { useChat } from 'ai/react'
+import { useChat, Message } from 'ai/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import React from 'react'
+
+interface ChatMessage extends Message {
+  timestamp: string;
+}
 
 export default function ChatPage() {
   const supabase = createClient()
@@ -25,7 +29,7 @@ export default function ChatPage() {
     getSession()
   }, [supabase.auth])
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
+  const { messages: rawMessages, input, handleInputChange, handleSubmit, isLoading, setMessages: setRawMessages } = useChat({
     api: '/api/chat',
     headers: {
       'Authorization': authHeader
@@ -35,14 +39,14 @@ export default function ChatPage() {
       if (!reader) return;
 
       // Create initial assistant message
-      setMessages(current => [
+      setRawMessages(current => [
         ...current,
         {
           id: current.length.toString(),
           role: 'assistant',
           content: '',
           timestamp: new Date().toISOString()
-        }
+        } as ChatMessage
       ]);
 
       const decoder = new TextDecoder();
@@ -62,8 +66,8 @@ export default function ChatPage() {
                   const parsed = JSON.parse(jsonStr);
                   
                   // Update the last message with new content
-                  setMessages(current => {
-                    const lastMessage = current[current.length - 1];
+                  setRawMessages(current => {
+                    const lastMessage = current[current.length - 1] as ChatMessage;
                     if (lastMessage?.role === 'assistant') {
                       return [
                         ...current.slice(0, -1),
@@ -89,6 +93,12 @@ export default function ChatPage() {
       readChunks();
     }
   })
+
+  // Add timestamp to user messages
+  const messages = rawMessages.map(msg => ({
+    ...msg,
+    timestamp: (msg as ChatMessage).timestamp || new Date().toISOString()
+  })) as ChatMessage[]
 
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
@@ -135,18 +145,27 @@ export default function ChatPage() {
                   }`}
                 >
                   <div
-                    className={`rounded-lg px-4 py-2 max-w-[80%] whitespace-pre-wrap ${
+                    className={`rounded-lg px-4 py-2 max-w-[80%] whitespace-pre-wrap relative ${
                       message.role === 'assistant'
                         ? 'bg-muted'
                         : 'bg-primary text-primary-foreground'
                     }`}
                   >
-                    {message.content.split('\n').map((line, index, array) => (
-                      <React.Fragment key={index}>
-                        {line}
-                        {index < array.length - 1 && <br />}
-                      </React.Fragment>
-                    ))}
+                    <div className="mb-1">
+                      {message.content.split('\n').map((line, index, array) => (
+                        <React.Fragment key={index}>
+                          {line}
+                          {index < array.length - 1 && <br />}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                    <div className={`text-[10px] ${
+                      message.role === 'assistant'
+                        ? 'text-muted-foreground'
+                        : 'text-primary-foreground/70'
+                    }`}>
+                      {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
                   </div>
                 </div>
               ))}
