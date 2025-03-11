@@ -151,20 +151,22 @@ export default function ChatPage() {
                         : 'bg-primary text-primary-foreground'
                     }`}
                   >
-                    <div className="mb-1">
-                      {message.content.split('\n').map((line, index, array) => (
-                        <React.Fragment key={index}>
-                          {line}
-                          {index < array.length - 1 && <br />}
-                        </React.Fragment>
-                      ))}
-                    </div>
-                    <div className={`text-[10px] ${
-                      message.role === 'assistant'
-                        ? 'text-muted-foreground'
-                        : 'text-primary-foreground/70'
-                    }`}>
-                      {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        {message.content.split('\n').map((line, index, array) => (
+                          <React.Fragment key={index}>
+                            {line}
+                            {index < array.length - 1 && <br />}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                      <div className={`text-[10px] flex-shrink-0 self-end ${
+                        message.role === 'assistant'
+                          ? 'text-muted-foreground'
+                          : 'text-primary-foreground/70'
+                      }`}>
+                        {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
                   </div>
                 </div>
