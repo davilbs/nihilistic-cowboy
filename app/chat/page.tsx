@@ -37,7 +37,8 @@ export default function ChatPage() {
         {
           id: current.length.toString(),
           role: 'assistant',
-          content: ''
+          content: '',
+          timestamp: new Date().toISOString()
         }
       ]);
 
@@ -96,9 +97,9 @@ export default function ChatPage() {
   }, [messages])
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-between p-4 md:p-24">
-      <Card className="w-full max-w-4xl">
-        <div className="flex h-[80vh] flex-col">
+    <div className="flex h-[calc(100vh-4rem)] w-4/5 mx-auto">
+      <Card className="w-full">
+        <div className="flex h-full flex-col">
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-4">
               {messages.map((message, i) => (
