@@ -7,10 +7,13 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import React from 'react'
 
 export default function ChatPage() {
   const supabase = createClient()
   const [authHeader, setAuthHeader] = useState<string>('')
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const isAtBottom = useRef(true)
 
   useEffect(() => {
     const getSession = async () => {
@@ -86,21 +89,41 @@ export default function ChatPage() {
       readChunks();
     }
   })
-  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
   }
 
   useEffect(() => {
-    scrollToBottom()
+    if (isAtBottom.current) {
+      scrollToBottom()
+    }
   }, [messages])
+
+  // Add scroll listener to track if we're at bottom
+  useEffect(() => {
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+      isAtBottom.current = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+    return () => scrollContainer.removeEventListener('scroll', handleScroll)
+  }, [])
 
   return (
     <div className="flex h-[calc(100vh-4rem)] w-4/5 mx-auto">
       <Card className="w-full">
         <div className="flex h-full flex-col">
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
             <div className="space-y-4">
               {messages.map((message, i) => (
                 <div
@@ -112,17 +135,21 @@ export default function ChatPage() {
                   }`}
                 >
                   <div
-                    className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                    className={`rounded-lg px-4 py-2 max-w-[80%] whitespace-pre-wrap ${
                       message.role === 'assistant'
                         ? 'bg-muted'
                         : 'bg-primary text-primary-foreground'
                     }`}
                   >
-                    {message.content}
+                    {message.content.split('\n').map((line, index, array) => (
+                      <React.Fragment key={index}>
+                        {line}
+                        {index < array.length - 1 && <br />}
+                      </React.Fragment>
+                    ))}
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
 
